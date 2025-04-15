@@ -33,7 +33,10 @@
 
 #include "plot_background.h"
 
+#include "stats_overlay.h"
+
 class StatisticsDialog;
+class StatsOverlay;
 
 class PlotWidget : public PlotWidgetBase
 {
@@ -161,6 +164,8 @@ private slots:
   void canvasContextMenuTriggered(const QPoint& pos);
 
   void on_externallyResized(const QRectF& new_rect);
+   
+  void toggleStatsView(bool enabled);
 
 private:
   QAction* _action_removeAllCurves;
@@ -177,6 +182,7 @@ private:
   QAction* _action_copy;
   QAction* _action_paste;
   QAction* _action_image_to_clipboard;
+  QAction* _action_toggle_stats_view;
 
   QAction* _flip_x;
   QAction* _flip_y;
@@ -187,6 +193,9 @@ private:
   QString _statistics_window_title = "";
 
   std::unique_ptr<BackgroundColorItem> _background_item;
+  
+  bool _stats_view_enabled = false;
+  StatsOverlay* _stats_overlay = nullptr; // Stats panel view
 
   bool _use_date_time_scale;
 

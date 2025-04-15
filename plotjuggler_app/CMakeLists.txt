@@ -70,6 +70,7 @@ SET( PLOtJUGGLER_SRC
 #    plotzoomer.cpp
     plot_background.cpp
     statistics_dialog.cpp
+    stats_overlay.cpp 
 
     suggest_dialog.cpp
 #    timeseries_qwt.cpp
