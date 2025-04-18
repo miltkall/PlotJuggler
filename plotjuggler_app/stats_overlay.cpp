@@ -173,7 +173,7 @@ double StatsOverlay::getCurrentValue(const QwtPlotCurve* curve, double x_pos) co
     if (auto series = dynamic_cast<const QwtTimeseries*>(curve->data()))
     {
         // Need const_cast because sampleFromTime isn't marked const
-        auto pointXY = const_cast<QwtTimeseries*>(series)->sampleFromTime(x_pos);
+        auto pointXY = const_cast<QwtTimeseries*>(series)->sampleFromTime(x_pos + _plot_widget->timeOffset());
         if (pointXY)
         {
             return pointXY.value().y();
