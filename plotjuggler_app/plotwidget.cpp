@@ -1093,6 +1093,12 @@ void PlotWidget::setTrackerPosition(double abs_time)
   {
     double relative_time = abs_time - _time_offset;
     _tracker->setPosition(QPointF(relative_time, 0.0));
+    
+    // Update the stats overlay when time slider changes
+    if (_stats_view_enabled && _stats_overlay)
+    {
+      _stats_overlay->updateTrackerPosition(QPointF(relative_time, 0.0));
+    }
   }
 }
 
