@@ -142,13 +142,6 @@ void StatsOverlay::updateData()
         _current_values[title] = value;
     }
     
-    // qDebug() << "StatsOverlay::updateData - Updated values for" << visible_curves << "visible curves";
-    
-    // Update with current tracker position if available
-    if (!_tracker_pos.isNull()) {
-        updateTrackerPosition(_tracker_pos);
-    }
-    
     update();
 }
 
