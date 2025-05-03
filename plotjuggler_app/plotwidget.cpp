@@ -22,6 +22,9 @@
 #include <QSettings>
 #include <QSvgGenerator>
 #include <QClipboard>
+#include <QGesture>
+#include <QGestureEvent>
+#include <QTapAndHoldGesture>
 #include <iostream>
 #include <limits>
 #include <set>
@@ -120,6 +123,12 @@ PlotWidget::PlotWidget(PlotDataMapRef& datamap, QWidget* parent)
   //  bottomAxis->installEventFilter(this);
   //  leftAxis->installEventFilter(this);
   //  qwtPlot()->canvas()->installEventFilter(this);
+
+  // Enable gesture recognition ONLY inside the canvas
+  qwtPlot()->canvas()->grabGesture(Qt::TapAndHoldGesture);
+
+  // Configure the hold time (3 seconds)
+  QTapAndHoldGesture::setTimeout(1500);  // 3 seconds
 }
 
 PlotWidget::~PlotWidget()
@@ -227,11 +236,11 @@ void PlotWidget::buildActions()
   _action_data_statistics = new QAction("&Show data statistics", this);
   connect(_action_data_statistics, &QAction::triggered, this,
           &PlotWidget::onShowDataStatistics);
-  
+
   _action_toggle_stats_view = new QAction("Toggle Stats Panel", this);
   _action_toggle_stats_view->setCheckable(true);
-  connect(_action_toggle_stats_view, &QAction::toggled, this, &PlotWidget::toggleStatsView);
-
+  connect(_action_toggle_stats_view, &QAction::toggled, this,
+          &PlotWidget::toggleStatsView);
 }
 
 void PlotWidget::canvasContextMenuTriggered(const QPoint& pos)
@@ -284,7 +293,7 @@ void PlotWidget::canvasContextMenuTriggered(const QPoint& pos)
   menu.addAction(_action_saveToFile);
   menu.addAction(_action_data_statistics);
   menu.addSeparator();
-  menu.addAction(_action_toggle_stats_view); 
+  menu.addAction(_action_toggle_stats_view);
 
   // check the clipboard
   QClipboard* clipboard = QGuiApplication::clipboard();
@@ -702,7 +711,7 @@ QDomElement PlotWidget::xmlSaveState(QDomDocument& doc) const
     plot_el.appendChild(curve_el);
 
     if (isXYPlot())
-    { 
+    {
       if (auto xy = dynamic_cast<PointSeriesXY*>(curve->data()))
       {
         curve_el.setAttribute("curve_x", QString::fromStdString(xy->dataX()->plotName()));
@@ -749,7 +758,7 @@ bool PlotWidget::xmlLoadState(QDomElement& plot_widget, bool autozoom)
 
   _flip_x->setChecked(plot_widget.attribute("flip_x") == "true");
   _flip_y->setChecked(plot_widget.attribute("flip_y") == "true");
-  
+
   // Restore the stats view state if it exists in the XML
   if (plot_widget.hasAttribute("stats_view"))
   {
@@ -1006,7 +1015,8 @@ void PlotWidget::setZoomRectangle(QRectF rect, bool emit_signal)
   }
 
   // Update stats panel
-  if (_stats_view_enabled && _stats_overlay) {
+  if (_stats_view_enabled && _stats_overlay)
+  {
     _stats_overlay->updateData();
   }
 
@@ -1093,7 +1103,7 @@ void PlotWidget::setTrackerPosition(double abs_time)
   {
     double relative_time = abs_time - _time_offset;
     _tracker->setPosition(QPointF(relative_time, 0.0));
-    
+
     // Update the stats overlay when time slider changes
     if (_stats_view_enabled && _stats_overlay)
     {
@@ -1188,7 +1198,8 @@ void PlotWidget::updateCurves(bool reset_older_data)
   updateMaximumZoomArea();
 
   // Update stats panel
-  if (_stats_view_enabled && _stats_overlay) {
+  if (_stats_view_enabled && _stats_overlay)
+  {
     _stats_overlay->updateData();
   }
 
@@ -1593,6 +1604,19 @@ bool PlotWidget::eventFilter(QObject* obj, QEvent* event)
     return false;
   }
 
+  if (event->type() == QEvent::Gesture && obj == qwtPlot()->canvas())
+  {
+    QGestureEvent* gesture_event = static_cast<QGestureEvent*>(event);
+    if (QGesture* tapHold = gesture_event->gesture(Qt::TapAndHoldGesture))
+    {
+      if (tapHold->state() == Qt::GestureFinished)
+      {
+        toggleStatsView(!_stats_view_enabled);
+        return true;
+      }
+    }
+  }
+
   if (obj == qwtPlot()->canvas())
   {
     return canvasEventFilter(event);
@@ -1791,50 +1815,61 @@ QwtSeriesWrapper* PlotWidget::createTimeSeries(const PlotData* data,
 // Implement the toggleStatsView method
 void PlotWidget::toggleStatsView(bool enabled)
 {
-    if (_stats_view_enabled == enabled) {
-        return;  // No change
+  if (_stats_view_enabled == enabled)
+  {
+    return;  // No change
+  }
+
+  _stats_view_enabled = enabled;
+
+  // Update the checked state of the action
+  if (_action_toggle_stats_view->isChecked() != enabled)
+  {
+    QSignalBlocker blocker(_action_toggle_stats_view);
+    _action_toggle_stats_view->setChecked(enabled);
+  }
+
+  if (enabled)
+  {
+    // Hide the legend when stats view is enabled
+    qDebug() << "Hiding legend for stats view";
+    legend()->setVisible(false);
+
+    if (!_stats_overlay)
+    {
+      qDebug() << "Activating stats overlay";
+      _stats_overlay = new StatsOverlay(qwtPlot()->canvas(), this);
     }
-    
-    _stats_view_enabled = enabled;
-    
-    // Update the checked state of the action
-    if (_action_toggle_stats_view->isChecked() != enabled) {
-        QSignalBlocker blocker(_action_toggle_stats_view);
-        _action_toggle_stats_view->setChecked(enabled);
+
+    // Connect to tracker time updates
+    connect(
+        this, &PlotWidget::trackerMoved, this,
+        [this](QPointF pos) {
+          if (_stats_overlay)
+          {
+            _stats_overlay->updateTrackerPosition(pos);
+          }
+        },
+        Qt::UniqueConnection);
+
+    _stats_overlay->updateData();
+    _stats_overlay->show();
+  }
+  else
+  {
+    // Restore legend visibility
+    qDebug() << "Restoring legend visibility";
+    legend()->setVisible(true);
+
+    // Disconnect from tracker time updates
+    disconnect(this, &PlotWidget::trackerMoved, this, nullptr);
+
+    if (_stats_overlay)
+    {
+      qDebug() << "Hiding stats overlay";
+      _stats_overlay->hide();
     }
-    
-    if (enabled) {
-        // Hide the legend when stats view is enabled
-        qDebug() << "Hiding legend for stats view";
-        legend()->setVisible(false);
-        
-        if (!_stats_overlay) {
-            qDebug() << "Activating stats overlay";
-            _stats_overlay = new StatsOverlay(qwtPlot()->canvas(), this);
-        }
-        
-        // Connect to tracker time updates
-        connect(this, &PlotWidget::trackerMoved, this, [this](QPointF pos) {
-            if (_stats_overlay) {
-                _stats_overlay->updateTrackerPosition(pos);
-            }
-        }, Qt::UniqueConnection);
-        
-        _stats_overlay->updateData();
-        _stats_overlay->show();
-    } else {
-        // Restore legend visibility
-        qDebug() << "Restoring legend visibility";
-        legend()->setVisible(true);
-        
-        // Disconnect from tracker time updates
-        disconnect(this, &PlotWidget::trackerMoved, this, nullptr);
-        
-        if (_stats_overlay) {
-            qDebug() << "Hiding stats overlay";
-            _stats_overlay->hide();
-        }
-    }
-    
-    replot();
+  }
+
+  replot();
 }
