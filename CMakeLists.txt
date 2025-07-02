@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-PROJECT(plotjuggler LANGUAGES C CXX VERSION 3.10.5)
+PROJECT(plotjuggler LANGUAGES C CXX VERSION 3.10.8)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -212,12 +212,16 @@ else()
         )
 endif()
 
+target_include_directories(plotjuggler_base
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sol2-3.5.0/include>
+)
+
 target_link_libraries(plotjuggler_base
     PUBLIC
         plotjuggler_qwt
     PRIVATE
         lua::lua
-        sol2::sol2
     )
 
 target_include_directories(plotjuggler_base
@@ -294,6 +298,7 @@ if(NOT COMPILING_WITH_AMENT AND NOT COMPILING_WITH_CATKIN)
     install(
       EXPORT ${PROJECT_NAME}Targets
       FILE ${PROJECT_NAME}Targets.cmake
+      NAMESPACE ${PROJECT_NAME}::
       DESTINATION ${PJ_CMAKECONFIG_INSTALL_DIR}
     )
 

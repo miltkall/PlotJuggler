@@ -16,8 +16,7 @@ function(find_or_download_lua)
         message(STATUS "Lua not found, downloading")
         CPMAddPackage(
             NAME lua
-            GITHUB_REPOSITORY lua/lua
-            GIT_TAG v5.4.7
+            URL https://github.com/lua/lua/archive/refs/tags/v5.4.7.zip
             DOWNLOAD_ONLY YES
         )
         # lua has no CMake support, so we create our own target
@@ -37,25 +36,5 @@ function(find_or_download_lua)
         )
     endif()
 
-    ################################3
-    if(NOT TARGET sol2::sol2)
-        message(STATUS "Sol2 not found, downloading")
-        CPMAddPackage(
-            NAME sol2
-            GITHUB_REPOSITORY ThePhD/sol2
-            GIT_TAG v3.5.0
-            DOWNLOAD_ONLY YES
-        )
-
-        add_library(sol2 INTERFACE )
-        target_include_directories(sol2 INTERFACE
-            $<BUILD_INTERFACE:${sol2_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
-
-        add_library(sol2::sol2 ALIAS sol2)
-        set(SOL2_FOUND TRUE)
-
-        install(TARGETS sol2 EXPORT plotjugglerTargets )
-    endif()
 
 endfunction()
